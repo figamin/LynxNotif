@@ -1,0 +1,106 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	//"io/ioutil"
+	//"log"
+	"net/http"
+	"os"
+	"time"
+	//"github.com/bwmarrin/discordgo"
+)
+
+type Config struct {
+    Website            string `json:"website"`
+	DiscordToken       string `json:"discordToken"`
+	QuickReply         bool   `json:"quickReply"`
+	UpdateIntervalMins int    `json:"updateIntervalMins"`
+	OverboardMode      bool   `json:"overboardMode"`
+}
+type LynxJson struct {
+	Threads []struct {
+		BoardURI string `json:"boardUri"`
+		ThreadID int `json:"threadID"`
+		Name     string `json:"name"`
+		Posts []struct {
+			PostID int `json:"postId"`
+		} `json:"posts"`
+	} `json:"threads"`
+}
+
+var myClient = &http.Client{Timeout: 10 * time.Second}
+func LoadConfiguration(file string) Config {
+    var config Config
+    configFile, err := os.Open(file)
+	if err != nil {
+        fmt.Println(err.Error())
+    }
+    defer configFile.Close()
+    jsonParser := json.NewDecoder(configFile)
+    jsonParser.Decode(&config)
+    return config
+}
+// d
+func NewPostCheckOverboard(Website string, QuickReply bool, previousThread *int, previousPost *int) string {
+	var newPosts LynxJson
+	r, err := myClient.Get(Website + "/overboard/1.json")
+    if err != nil {
+        fmt.Println(err)
+    }
+    defer r.Body.Close()
+    err = json.NewDecoder(r.Body).Decode(&newPosts)
+	if err != nil {
+        fmt.Println(err)
+    }
+	if len(newPosts.Threads[0].Posts) == 0 {
+		if newPosts.Threads[0].ThreadID != *previousThread {
+			*previousThread = newPosts.Threads[0].ThreadID
+			newThreadTemplate := "New /" + newPosts.Threads[0].BoardURI + "/ Thread: " + Website + "/" + newPosts.Threads[0].BoardURI + "/res/" + fmt.Sprintf("%v", newPosts.Threads[0].ThreadID) + ".html#"
+			if QuickReply {
+				return newThreadTemplate + "q" + fmt.Sprintf("%v", newPosts.Threads[0].ThreadID)
+			} else {
+				return newThreadTemplate + "q" + fmt.Sprintf("%v", newPosts.Threads[0].ThreadID)
+			}
+		} else {
+			return "NONE"
+		}
+	} else {
+		if newPosts.Threads[0].Posts[len(newPosts.Threads[0].Posts) - 1].PostID != *previousPost {
+			*previousThread = newPosts.Threads[0].Posts[len(newPosts.Threads[0].Posts) - 1].PostID
+			newPostTemplate := "New /" + newPosts.Threads[0].BoardURI + "/ Post: " + Website + "/" + newPosts.Threads[0].BoardURI + "/res/" + fmt.Sprintf("%v", newPosts.Threads[0].ThreadID) + ".html#"
+			if QuickReply {
+				return newPostTemplate + "q" + fmt.Sprintf("%v", newPosts.Threads[0].Posts[len(newPosts.Threads[0].Posts) - 1].PostID)
+			} else {
+				return newPostTemplate + fmt.Sprintf("%v", newPosts.Threads[0].Posts[len(newPosts.Threads[0].Posts) - 1].PostID)
+			}
+		} else {
+			return "NONE"
+		}
+	}
+}
+func main() {
+	fmt.Println("Bot Invite Link: " + "https://discord.com/api/oauth2/authorize?client_id=1048986212683223133&permissions=8&scope=bot")
+	/*dg, err := discordgo.New("Bot " + config.)
+    if err != nil {
+        fmt.Println("error creating Discord session,", err)
+        return
+    }*/
+	
+	var configFile = LoadConfiguration("config.json")
+	var previousThread = 0
+	var previousPost = 0
+	var postReply string
+	for range time.Tick(time.Second * 5) {
+		go func() {
+			if(configFile.OverboardMode) {
+				postReply = NewPostCheckOverboard(configFile.Website, configFile.QuickReply, &previousThread, &previousPost)
+			} else {
+				postReply = "Individual Board Mode TODO"
+			}
+			if(postReply != "NONE") {
+				fmt.Println(postReply)
+			}
+		}()
+	}
+}

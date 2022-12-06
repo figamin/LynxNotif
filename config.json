@@ -1,4 +1,7 @@
 {
     "website": "https://wapchan.org",
-    
+    "discordToken": "",
+    "quickReply": true,
+    "updateIntervalMins": 5,
+    "overboardMode": true
 }
